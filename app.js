@@ -34,7 +34,7 @@
   const persianCalendar = new Intl.DateTimeFormat('en-US-u-ca-persian', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: 'Asia/Tehran' });
 
   function effectiveStatus(doc) { return doc.status; }
-  function effectiveDate(doc) { return doc.lastChange || ''; }
+  function effectiveDate(doc) { return latinDigits(doc.lastChange || ''); }
   function showToast(message) {
     const toast = $('toast');
     toast.textContent = message;

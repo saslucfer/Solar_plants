@@ -1,3 +1,4 @@
 *.xlsx
 .chrome-test-profile/
 dashboard-*-preview.png
+workbook-backups/

@@ -65,6 +65,12 @@ function Convert-MdlDate([string]$value) {
     return ('{0:D4}/{1:D2}/{2:D2}' -f $year, $month, $day)
 }
 
+function Convert-ToPersianDigits([string]$value) {
+    $persian = '۰۱۲۳۴۵۶۷۸۹'
+    for ($i = 0; $i -lt 10; $i++) { $value = $value.Replace([string]$i, [string]$persian[$i]) }
+    return $value
+}
+
 function Save-Document($request) {
     if (-not $request -or -not $request.id -or $allowedStatuses -notcontains [string]$request.status) { throw '[400] شناسه یا وضعیت مدرک معتبر نیست.' }
     if ($request.PSObject.Properties.Name -notcontains 'lastChange' -or $request.PSObject.Properties.Name -notcontains 'expectedStatus' -or $request.PSObject.Properties.Name -notcontains 'expectedLastChange') { throw '[400] داده‌های تغییر ناقص است.' }
@@ -100,14 +106,16 @@ function Save-Document($request) {
         }
         $dateColumn = $statusStart + 4
         if (-not (Get-CellText $sheet 1 $dateColumn)) {
-            $sheet.Cells.Item(1, $dateColumn).Value2 = 'تاریخ آخرین تغییر وضعیت (شمسی)'
-            $sheet.Columns.Item($dateColumn).ColumnWidth = 25
+            $sheet.Cells.Item(1, $dateColumn).Value2 = 'آخرین تغییر وضعیت'
+            $sheet.Cells.Item(2, $dateColumn).Value2 = 'تاریخ شمسی: ۱۴۰۵/۰۷/۲۶'
+            $sheet.Columns.Item($dateColumn).ColumnWidth = 30
         }
         $sheet.Cells.Item($row, $dateColumn).NumberFormat = '@'
-        $sheet.Cells.Item($row, $dateColumn).Value2 = $newDate
+        $excelDate = Convert-ToPersianDigits $newDate
+        $sheet.Cells.Item($row, $dateColumn).Value2 = $excelDate
         $book.Save()
         $doc.status = [string]$request.status
-        $doc.lastChange = $newDate
+        $doc.lastChange = $excelDate
         $script:currentData.generatedAt = (Get-Date).ToUniversalTime().ToString('o')
         $script:currentVersion = Get-WorkbookVersion
         return [ordered]@{ document = $doc; version = $script:currentVersion }
