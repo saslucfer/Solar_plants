@@ -32,6 +32,9 @@
   const persianDigits = value => String(value).replace(/[0-9]/g, d => '۰۱۲۳۴۵۶۷۸۹'[Number(d)]);
   const collator = new Intl.Collator('fa');
   const persianCalendar = new Intl.DateTimeFormat('en-US-u-ca-persian', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: 'Asia/Tehran' });
+  const tehranGregorian = new Intl.DateTimeFormat('en-US-u-ca-gregory', { year: 'numeric', month: 'numeric', day: 'numeric', timeZone: 'Asia/Tehran' });
+  const parsedDateCache = new Map();
+  let currentOverdueCutoff = '';
 
   function effectiveStatus(doc) { return doc.status; }
   function effectiveDate(doc) { return latinDigits(doc.lastChange || ''); }
@@ -183,6 +186,57 @@
     data.plants.forEach(plant => cards.push(plantCard(plant.id, plant.name, data.documents.filter(doc => doc.plantId === plant.id))));
     $('plant-grid').replaceChildren(...cards);
   }
+  function overdueCutoff() {
+    const today = Object.fromEntries(tehranGregorian.formatToParts(new Date()).filter(part => ['year', 'month', 'day'].includes(part.type)).map(part => [part.type, Number(part.value)]));
+    const sevenDaysAgo = new Date(Date.UTC(today.year, today.month - 1, today.day - 7));
+    const parts = Object.fromEntries(persianCalendar.formatToParts(sevenDaysAgo).filter(part => ['year', 'month', 'day'].includes(part.type)).map(part => [part.type, Number(part.value)]));
+    return `${parts.year}/${String(parts.month).padStart(2, '0')}/${String(parts.day).padStart(2, '0')}`;
+  }
+  function normalizedDocumentDate(doc) {
+    const rawDate = effectiveDate(doc);
+    if (!rawDate) return '';
+    if (!parsedDateCache.has(rawDate)) parsedDateCache.set(rawDate, parsePersianDate(rawDate)?.date || '');
+    return parsedDateCache.get(rawDate);
+  }
+  function renderOverdue() {
+    const cutoff = overdueCutoff();
+    currentOverdueCutoff = cutoff;
+    let total = 0;
+    const cards = data.plants.map(plant => {
+      const unapproved = data.documents.filter(doc => doc.plantId === plant.id && effectiveStatus(doc) !== 'approved');
+      const overdue = unapproved
+        .map(doc => ({ doc, date: normalizedDocumentDate(doc) }))
+        .filter(item => item.date && item.date < cutoff)
+        .sort((a, b) => a.date.localeCompare(b.date) || collator.compare(a.doc.title, b.doc.title));
+      total += overdue.length;
+      const card = el('article', `overdue-card${overdue.length ? ' has-overdue' : ''}`);
+      const heading = el('div', 'overdue-card-head');
+      heading.append(el('h3', '', plant.name), el('span', 'overdue-count', `${faNumber(overdue.length)} مدرک`));
+      card.append(heading);
+      if (!overdue.length) {
+        const undated = unapproved.filter(doc => !normalizedDocumentDate(doc)).length;
+        const message = undated
+          ? `تاریخ ${faNumber(undated)} مدرک تأییدنشده ثبت نشده است؛ تأخیر آن‌ها قابل محاسبه نیست.`
+          : 'مدرک تأییدنشده با تأخیر بیش از یک هفته ثبت نشده است.';
+        card.append(el('p', 'overdue-empty', message));
+        return card;
+      }
+      const list = el('ul', 'overdue-list');
+      overdue.forEach(({ doc, date }) => {
+        const item = el('li', 'overdue-item');
+        item.append(el('strong', 'overdue-document', doc.title));
+        const details = el('div', 'overdue-details');
+        if (doc.code) details.append(el('span', 'overdue-code', doc.code));
+        details.append(el('span', '', STATUS[effectiveStatus(doc)].label), el('span', 'overdue-date', `آخرین تغییر: ${persianDigits(date)}`));
+        item.append(details);
+        list.append(item);
+      });
+      card.append(list);
+      return card;
+    });
+    $('overdue-total').textContent = `${faNumber(total)} مدرک در ${faNumber(data.plants.length)} نیروگاه`;
+    $('overdue-grid').replaceChildren(...cards);
+  }
   function renderCategories() {
     const select = $('category-filter');
     const oldValue = select.value;
@@ -267,7 +321,7 @@
     $('prev-page').disabled = page <= 1;
     $('next-page').disabled = page >= pages;
   }
-  function renderAll() { renderMetrics(); renderPlants(); renderCategories(); renderDocuments(); }
+  function renderAll() { renderMetrics(); renderPlants(); renderOverdue(); renderCategories(); renderDocuments(); }
 
   function csvCell(value) {
     let text = String(value ?? '');
@@ -311,7 +365,7 @@
     if (event.target.value === doc.status) return;
     event.target.disabled = true;
     const saved = await saveDocument(doc, event.target.value, '');
-    renderMetrics(); renderPlants(); renderDocuments();
+    renderMetrics(); renderPlants(); renderOverdue(); renderDocuments();
     if (saved) {
       const currentRow = [...$('document-rows').rows].find(row => row.dataset.id === id);
       currentRow?.querySelector('.date-input')?.focus();
@@ -330,6 +384,7 @@
     input.disabled = false;
     if (!saved) { input.value = persianDigits(effectiveDate(doc)); return; }
     input.value = persianDigits(result.date);
+    renderOverdue();
     if ($('missing-date').checked) renderDocuments();
     showToast(result.date ? 'تاریخ آخرین تغییر در اکسل ذخیره شد.' : 'تاریخ در اکسل پاک شد.');
   }
@@ -346,4 +401,5 @@
   $('refresh-data').addEventListener('click', () => refreshFromExcel(true));
   window.addEventListener('focus', checkExcelVersion);
   setInterval(checkExcelVersion, 7000);
+  setInterval(() => { if (overdueCutoff() !== currentOverdueCutoff) renderOverdue(); }, 60000);
 })();
