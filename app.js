@@ -45,7 +45,7 @@
   function updateConnectionLabel() {
     $('connection-status').textContent = live ? 'متصل به فایل‌های اکسل' : 'نمای آفلاین؛ بدون امکان ویرایش';
     $('sync-note').textContent = live
-      ? 'تاریخ را به صورت شمسی، مانند ۱۴۰۵/۰۷/۲۶ وارد کنید. تغییرات مستقیماً در فایل اکسل ذخیره می‌شوند.'
+      ? 'تاریخ شمسی را وارد کنید و «ثبت» را بزنید؛ کلید Enter یا خروج از کادر هم تاریخ را در فایل اکسل ذخیره می‌کند.'
       : 'برای ویرایش و همگام‌سازی با اکسل، فایل start-dashboard.cmd را اجرا کنید.';
     $('refresh-data').disabled = !live;
   }
@@ -249,8 +249,10 @@
     dateInput.maxLength = 10; dateInput.value = persianDigits(effectiveDate(doc));
     dateInput.disabled = !live;
     dateInput.setAttribute('aria-label', `تاریخ آخرین تغییر وضعیت ${doc.title}`);
+    const saveDate = el('button', 'save-date-button', 'ثبت'); saveDate.type = 'button';
+    saveDate.title = 'ذخیره تاریخ این مدرک در فایل اکسل'; saveDate.disabled = !live;
     const today = el('button', 'today-button', 'امروز'); today.type = 'button'; today.title = 'ثبت تاریخ امروز به تقویم شمسی'; today.disabled = !live;
-    dateWrap.append(dateInput, today); dateCell.append(dateWrap); row.append(dateCell);
+    dateWrap.append(dateInput, saveDate, today); dateCell.append(dateWrap); row.append(dateCell);
     return row;
   }
   function renderDocuments() {
@@ -317,6 +319,7 @@
     }
   });
   async function saveDateInput(input) {
+    if (input.disabled) return;
     const result = parsePersianDate(input.value);
     if (!result) { input.classList.add('invalid'); showToast('تاریخ شمسی معتبر نیست. نمونه: ۱۴۰۵/۰۷/۲۶'); return; }
     input.classList.remove('invalid');
@@ -330,13 +333,14 @@
     if ($('missing-date').checked) renderDocuments();
     showToast(result.date ? 'تاریخ آخرین تغییر در اکسل ذخیره شد.' : 'تاریخ در اکسل پاک شد.');
   }
-  $('document-rows').addEventListener('focusout', event => { if (event.target.matches('.date-input') && !event.relatedTarget?.matches('.today-button')) saveDateInput(event.target); });
+  $('document-rows').addEventListener('focusout', event => { if (event.target.matches('.date-input') && !event.relatedTarget?.matches('.today-button, .save-date-button')) saveDateInput(event.target); });
   $('document-rows').addEventListener('keydown', event => { if (event.target.matches('.date-input') && event.key === 'Enter') event.target.blur(); });
   $('document-rows').addEventListener('click', event => {
     const row = event.target.closest('tr'); if (!row) return;
     if (event.target.matches('.today-button')) {
       const input = row.querySelector('.date-input'); input.value = persianDigits(todayPersian()); saveDateInput(input);
     }
+    if (event.target.matches('.save-date-button')) saveDateInput(row.querySelector('.date-input'));
   });
   $('export-csv').addEventListener('click', exportCsv);
   $('refresh-data').addEventListener('click', () => refreshFromExcel(true));
