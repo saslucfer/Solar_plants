@@ -1,0 +1,320 @@
+(() => {
+  'use strict';
+
+  const data = window.MDL_DATA;
+  if (!data || !Array.isArray(data.documents) || !Array.isArray(data.plants)) {
+    document.body.innerHTML = '<main style="padding:3rem;font-family:Tahoma;direction:rtl">فایل داده‌ها بارگذاری نشد. لطفاً فایل refresh-data.ps1 را اجرا کنید.</main>';
+    return;
+  }
+
+  const STATUS = {
+    approved: { label: 'تأیید شده', color: '#2eaa88' },
+    pending: { label: 'در انتظار تأیید', color: '#e3aa4b' },
+    'not-sent': { label: 'ارسال نشده', color: '#a8b8bb' },
+    revision: { label: 'در انتظار اصلاح', color: '#d98575' },
+    unknown: { label: 'نامشخص', color: '#a79ab8' }
+  };
+  const statusOrder = Object.keys(STATUS);
+  const plantMap = new Map(data.plants.map(plant => [plant.id, plant]));
+  const documentMap = new Map(data.documents.map(doc => [doc.id, doc]));
+  const storageKey = 'solar-mdl-dashboard-v1';
+  const pageSize = 25;
+  let currentPlant = 'all';
+  let page = 1;
+  let overrides = {};
+  let toastTimer;
+
+  const $ = id => document.getElementById(id);
+  const faNumber = value => new Intl.NumberFormat('fa-IR').format(value);
+  const latinDigits = value => String(value).replace(/[۰-۹]/g, d => String(d.charCodeAt(0) - 1776)).replace(/[٠-٩]/g, d => String(d.charCodeAt(0) - 1632));
+  const persianDigits = value => String(value).replace(/[0-9]/g, d => '۰۱۲۳۴۵۶۷۸۹'[Number(d)]);
+  const collator = new Intl.Collator('fa');
+  const persianCalendar = new Intl.DateTimeFormat('en-US-u-ca-persian', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: 'Asia/Tehran' });
+
+  function loadOverrides() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(storageKey) || '{}');
+      if (saved && typeof saved === 'object' && !Array.isArray(saved)) overrides = saved;
+    } catch { overrides = {}; }
+  }
+  function saveOverrides() {
+    try { localStorage.setItem(storageKey, JSON.stringify(overrides)); }
+    catch { showToast('ذخیره‌سازی مرورگر در دسترس نیست؛ از پشتیبان JSON استفاده کنید.'); }
+  }
+  function effectiveStatus(doc) {
+    const status = overrides[doc.id]?.status;
+    return STATUS[status] ? status : doc.status;
+  }
+  function effectiveDate(doc) { return overrides[doc.id]?.lastChange || ''; }
+  function updateOverride(id, patch) {
+    overrides[id] = { ...(overrides[id] || {}), ...patch };
+    if (!overrides[id].status && !overrides[id].lastChange) delete overrides[id];
+    saveOverrides();
+  }
+  function showToast(message) {
+    const toast = $('toast');
+    toast.textContent = message;
+    toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.remove('show'), 3300);
+  }
+  function el(tag, className, text) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+  function scopeDocs() { return currentPlant === 'all' ? data.documents : data.documents.filter(doc => doc.plantId === currentPlant); }
+  function countStatuses(docs) {
+    const counts = { approved: 0, pending: 0, 'not-sent': 0, revision: 0, unknown: 0 };
+    docs.forEach(doc => counts[effectiveStatus(doc)]++);
+    return counts;
+  }
+  function percent(part, total) { return total ? Math.round(part / total * 100) : 0; }
+
+  function renderMetrics() {
+    const docs = scopeDocs();
+    const counts = countStatuses(docs);
+    const name = currentPlant === 'all' ? 'همه نیروگاه‌ها' : plantMap.get(currentPlant).name;
+    $('scope-name').textContent = name;
+    $('documents-scope').textContent = name;
+    const cards = [
+      { label: 'کل مدارک', value: docs.length, color: '#1b6970', suffix: 'مدرک' },
+      ...statusOrder.slice(0, 4).map(status => ({ label: STATUS[status].label, value: counts[status], color: STATUS[status].color, suffix: `${percent(counts[status], docs.length)}٪` }))
+    ];
+    $('metric-cards').replaceChildren(...cards.map(card => {
+      const root = el('div', 'metric-card');
+      root.style.setProperty('--accent', card.color);
+      root.append(el('div', 'metric-label', card.label));
+      const value = el('div', 'metric-value', faNumber(card.value));
+      value.append(el('span', '', card.suffix));
+      root.append(value);
+      return root;
+    }));
+    const bar = $('distribution');
+    bar.replaceChildren(...statusOrder.map(status => {
+      const segment = el('span');
+      segment.style.width = `${docs.length ? counts[status] / docs.length * 100 : 0}%`;
+      segment.style.backgroundColor = STATUS[status].color;
+      return segment;
+    }));
+    bar.setAttribute('aria-label', statusOrder.map(s => `${STATUS[s].label}: ${counts[s]}`).join('، '));
+    $('distribution-legend').replaceChildren(...statusOrder.map(status => {
+      const item = el('span', 'legend-item');
+      const dot = el('i'); dot.style.backgroundColor = STATUS[status].color;
+      item.append(dot, el('span', '', `${STATUS[status].label} · ${faNumber(counts[status])}`));
+      return item;
+    }));
+    $('approval-rate').textContent = `${faNumber(percent(counts.approved, docs.length))}٪ تأیید شده`;
+  }
+
+  function miniBar(docs) {
+    const counts = countStatuses(docs);
+    const bar = el('div', 'mini-bar');
+    statusOrder.forEach(status => {
+      const segment = el('span');
+      segment.style.width = `${docs.length ? counts[status] / docs.length * 100 : 0}%`;
+      segment.style.backgroundColor = STATUS[status].color;
+      bar.append(segment);
+    });
+    return bar;
+  }
+  function plantCard(id, name, docs) {
+    const counts = countStatuses(docs);
+    const button = el('button', `plant-card${currentPlant === id ? ' active' : ''}`);
+    button.type = 'button';
+    button.dataset.plant = id;
+    button.setAttribute('aria-pressed', String(currentPlant === id));
+    const head = el('div', 'plant-head');
+    head.append(el('span', 'plant-name', name), el('span', 'plant-count', `${faNumber(docs.length)} مدرک`));
+    const foot = el('div', 'plant-foot');
+    foot.append(el('span', '', `${faNumber(counts.approved)} تأیید شده`), el('strong', '', `${faNumber(percent(counts.approved, docs.length))}٪ پیشرفت`));
+    button.append(head, foot, miniBar(docs));
+    return button;
+  }
+  function renderPlants() {
+    const cards = [plantCard('all', 'همه نیروگاه‌ها', data.documents)];
+    data.plants.forEach(plant => cards.push(plantCard(plant.id, plant.name, data.documents.filter(doc => doc.plantId === plant.id))));
+    $('plant-grid').replaceChildren(...cards);
+  }
+  function renderCategories() {
+    const select = $('category-filter');
+    const oldValue = select.value;
+    const categories = [...new Set(scopeDocs().map(doc => doc.category))].sort(collator.compare);
+    select.replaceChildren(new Option('همه بخش‌ها', 'all'), ...categories.map(category => new Option(category, category)));
+    select.value = categories.includes(oldValue) ? oldValue : 'all';
+  }
+  function filteredDocs() {
+    const query = latinDigits($('search').value.trim()).toLocaleLowerCase();
+    const status = $('status-filter').value;
+    const category = $('category-filter').value;
+    const missingDate = $('missing-date').checked;
+    return scopeDocs().filter(doc => {
+      if (status !== 'all' && effectiveStatus(doc) !== status) return false;
+      if (category !== 'all' && doc.category !== category) return false;
+      if (missingDate && effectiveDate(doc)) return false;
+      if (query && !`${doc.title} ${doc.code} ${plantMap.get(doc.plantId)?.name || ''}`.toLocaleLowerCase().includes(query)) return false;
+      return true;
+    });
+  }
+
+  function parsePersianDate(value) {
+    const normalized = latinDigits(value.trim()).replace(/[-.]/g, '/');
+    if (!normalized) return { date: '' };
+    const match = normalized.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/);
+    if (!match) return null;
+    const year = Number(match[1]), month = Number(match[2]), day = Number(match[3]);
+    if (year < 1200 || year > 1600 || month < 1 || month > 12 || day < 1 || day > 31) return null;
+    const date = `${year}/${String(month).padStart(2, '0')}/${String(day).padStart(2, '0')}`;
+    const start = Date.UTC(year + 621, 2, 18);
+    for (let offset = 0; offset < 375; offset++) {
+      const candidate = new Date(start + offset * 86400000);
+      const parts = Object.fromEntries(persianCalendar.formatToParts(candidate).filter(p => ['year', 'month', 'day'].includes(p.type)).map(p => [p.type, Number(p.value)]));
+      if (parts.year === year && parts.month === month && parts.day === day) return { date };
+    }
+    return null;
+  }
+  function todayPersian() {
+    const parts = Object.fromEntries(persianCalendar.formatToParts(new Date()).filter(p => ['year', 'month', 'day'].includes(p.type)).map(p => [p.type, p.value]));
+    return `${parts.year}/${parts.month}/${parts.day}`;
+  }
+
+  function documentRow(doc, ordinal) {
+    const status = effectiveStatus(doc);
+    const row = el('tr'); row.dataset.id = doc.id;
+    row.append(el('td', 'row-num', faNumber(ordinal)));
+    const nameCell = el('td', 'doc-name', doc.title);
+    nameCell.append(el('span', 'doc-plant', plantMap.get(doc.plantId)?.name || ''));
+    row.append(nameCell);
+    row.append(el('td', `doc-code${doc.code ? '' : ' empty'}`, doc.code || '—'));
+    const category = el('td', 'doc-category', doc.category); category.title = doc.category; row.append(category);
+    const statusCell = el('td');
+    const statusWrap = el('span', `status-control status-${status}`);
+    const statusSelect = el('select', 'status-select');
+    statusSelect.setAttribute('aria-label', `وضعیت ${doc.title}`);
+    statusOrder.forEach(key => statusSelect.append(new Option(STATUS[key].label, key)));
+    statusSelect.value = status;
+    statusWrap.append(statusSelect); statusCell.append(statusWrap); row.append(statusCell);
+    const dateCell = el('td', 'date-cell');
+    const dateWrap = el('div', 'date-entry');
+    const dateInput = el('input', 'date-input');
+    dateInput.type = 'text'; dateInput.inputMode = 'numeric'; dateInput.placeholder = '۱۴۰۵/۰۷/۲۶';
+    dateInput.maxLength = 10; dateInput.value = persianDigits(effectiveDate(doc));
+    dateInput.setAttribute('aria-label', `تاریخ آخرین تغییر وضعیت ${doc.title}`);
+    const today = el('button', 'today-button', 'امروز'); today.type = 'button'; today.title = 'ثبت تاریخ امروز به تقویم شمسی';
+    dateWrap.append(dateInput, today); dateCell.append(dateWrap); row.append(dateCell);
+    const resetCell = el('td');
+    if (overrides[doc.id]?.status && overrides[doc.id].status !== doc.status) {
+      const reset = el('button', 'reset-button', 'بازگشت به اکسل'); reset.type = 'button';
+      reset.setAttribute('aria-label', `بازگشت وضعیت ${doc.title} به فایل اکسل`);
+      resetCell.append(reset);
+    } else if (effectiveDate(doc)) {
+      resetCell.append(el('span', 'edited-dot'));
+    }
+    row.append(resetCell);
+    return row;
+  }
+  function renderDocuments() {
+    const docs = filteredDocs();
+    const pages = Math.max(1, Math.ceil(docs.length / pageSize));
+    page = Math.min(page, pages);
+    const start = (page - 1) * pageSize;
+    $('document-rows').replaceChildren(...docs.slice(start, start + pageSize).map((doc, index) => documentRow(doc, start + index + 1)));
+    $('empty-state').hidden = docs.length !== 0;
+    $('result-count').textContent = `${faNumber(docs.length)} مدرک`;
+    $('page-info').textContent = docs.length ? `${faNumber(start + 1)} تا ${faNumber(Math.min(start + pageSize, docs.length))} از ${faNumber(docs.length)}` : '۰ مدرک';
+    $('prev-page').disabled = page <= 1;
+    $('next-page').disabled = page >= pages;
+  }
+  function renderAll() { renderMetrics(); renderPlants(); renderCategories(); renderDocuments(); }
+
+  function csvCell(value) {
+    let text = String(value ?? '');
+    if (/^[\s]*[=+@-]/.test(text)) text = `'${text}`;
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+  function download(filename, content, mime) {
+    const url = URL.createObjectURL(new Blob([content], { type: mime }));
+    const link = document.createElement('a'); link.href = url; link.download = filename;
+    document.body.append(link); link.click(); link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  function dateStamp() { return new Date().toISOString().slice(0, 10); }
+  function exportCsv() {
+    const columns = ['نیروگاه', 'بخش', 'نام مدرک', 'شماره مدرک', 'وضعیت', 'آخرین تغییر وضعیت (شمسی)', 'فایل منبع', 'ردیف منبع'];
+    const rows = data.documents.map(doc => {
+      const plant = plantMap.get(doc.plantId);
+      return [plant.name, doc.category, doc.title, doc.code, STATUS[effectiveStatus(doc)].label, effectiveDate(doc), plant.file, doc.sourceRow];
+    });
+    download(`solar-mdl-${dateStamp()}.csv`, '\ufeff' + [columns, ...rows].map(row => row.map(csvCell).join(',')).join('\r\n'), 'text/csv;charset=utf-8');
+  }
+  function exportJson() {
+    download(`solar-mdl-backup-${dateStamp()}.json`, JSON.stringify({ format: 'solar-mdl-overrides-v1', exportedAt: new Date().toISOString(), overrides }, null, 2), 'application/json;charset=utf-8');
+  }
+  async function importJson(file) {
+    try {
+      const backup = JSON.parse(await file.text());
+      if (backup.format !== 'solar-mdl-overrides-v1' || !backup.overrides || typeof backup.overrides !== 'object') throw new Error('invalid');
+      let count = 0;
+      for (const [id, value] of Object.entries(backup.overrides)) {
+        if (!documentMap.has(id) || !value || typeof value !== 'object') continue;
+        const patch = {};
+        if (STATUS[value.status]) patch.status = value.status;
+        if (typeof value.lastChange === 'string' && parsePersianDate(value.lastChange)) patch.lastChange = parsePersianDate(value.lastChange).date;
+        if (Object.keys(patch).length) { overrides[id] = { ...(overrides[id] || {}), ...patch }; count++; }
+      }
+      saveOverrides(); renderAll(); showToast(`${faNumber(count)} تغییر از پشتیبان بازیابی شد.`);
+    } catch { showToast('فایل پشتیبان معتبر نیست.'); }
+  }
+
+  loadOverrides();
+  $('source-date').textContent = `به‌روزرسانی داده‌ها: ${new Intl.DateTimeFormat('fa-IR-u-ca-persian', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Tehran' }).format(new Date(data.generatedAt))}`;
+  renderAll();
+
+  $('plant-grid').addEventListener('click', event => {
+    const button = event.target.closest('[data-plant]');
+    if (!button) return;
+    currentPlant = button.dataset.plant; page = 1; renderAll();
+  });
+  $('search').addEventListener('input', () => { page = 1; renderDocuments(); });
+  ['status-filter', 'category-filter', 'missing-date'].forEach(id => $(id).addEventListener('change', () => { page = 1; renderDocuments(); }));
+  $('clear-filters').addEventListener('click', () => {
+    currentPlant = 'all'; $('search').value = ''; $('status-filter').value = 'all'; $('missing-date').checked = false; page = 1; renderAll();
+  });
+  $('prev-page').addEventListener('click', () => { if (page > 1) { page--; renderDocuments(); } });
+  $('next-page').addEventListener('click', () => { page++; renderDocuments(); });
+  $('document-rows').addEventListener('change', event => {
+    if (!event.target.matches('.status-select')) return;
+    const id = event.target.closest('tr').dataset.id;
+    const doc = documentMap.get(id);
+    updateOverride(id, { status: event.target.value === doc.status ? '' : event.target.value, lastChange: '' });
+    renderMetrics(); renderPlants(); renderDocuments();
+    const currentRow = [...$('document-rows').rows].find(row => row.dataset.id === id);
+    currentRow?.querySelector('.date-input')?.focus();
+    showToast('وضعیت ذخیره شد. تاریخ آخرین تغییر را نیز ثبت کنید.');
+  });
+  function saveDateInput(input) {
+    const result = parsePersianDate(input.value);
+    if (!result) { input.classList.add('invalid'); showToast('تاریخ شمسی معتبر نیست. نمونه: ۱۴۰۵/۰۷/۲۶'); return; }
+    input.classList.remove('invalid');
+    updateOverride(input.closest('tr').dataset.id, { lastChange: result.date });
+    input.value = persianDigits(result.date);
+    if ($('missing-date').checked) renderDocuments();
+    showToast(result.date ? 'تاریخ آخرین تغییر ذخیره شد.' : 'تاریخ پاک شد.');
+  }
+  $('document-rows').addEventListener('focusout', event => { if (event.target.matches('.date-input')) saveDateInput(event.target); });
+  $('document-rows').addEventListener('keydown', event => { if (event.target.matches('.date-input') && event.key === 'Enter') event.target.blur(); });
+  $('document-rows').addEventListener('click', event => {
+    const row = event.target.closest('tr'); if (!row) return;
+    if (event.target.matches('.today-button')) {
+      const input = row.querySelector('.date-input'); input.value = persianDigits(todayPersian()); saveDateInput(input);
+    }
+    if (event.target.matches('.reset-button')) {
+      updateOverride(row.dataset.id, { status: '', lastChange: '' }); renderMetrics(); renderPlants(); renderDocuments(); showToast('وضعیت از فایل اکسل بازیابی شد. تاریخ تغییر را دوباره ثبت کنید.');
+    }
+  });
+  $('export-csv').addEventListener('click', exportCsv);
+  $('export-json').addEventListener('click', exportJson);
+  $('import-json').addEventListener('click', () => $('import-file').click());
+  $('import-file').addEventListener('change', event => { if (event.target.files[0]) importJson(event.target.files[0]); event.target.value = ''; });
+})();

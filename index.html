@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#102e38">
+  <title>داشبورد مدارک نیروگاه‌های خورشیدی</title>
+  <meta name="description" content="نمای وضعیت فهرست اصلی مدارک نیروگاه‌های خورشیدی و ثبت تاریخ آخرین تغییر وضعیت">
+  <link rel="stylesheet" href="style.css">
+  <script src="data.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <div class="page-shell">
+    <header class="topbar">
+      <div class="brand-mark" aria-hidden="true"><span>☀</span></div>
+      <div class="brand-text"><strong>اطلس مدارک</strong><span>پایش پروژه‌های خورشیدی</span></div>
+      <div class="topbar-right"><span class="live-dot"></span> داده‌های ۹ نیروگاه</div>
+    </header>
+
+    <main>
+      <section class="hero" aria-labelledby="page-title">
+        <div class="hero-copy">
+          <div class="eyebrow"><span class="eyebrow-line"></span> MASTER DOCUMENT LIST</div>
+          <h1 id="page-title">وضعیت مدارک<br><em>در یک نگاه.</em></h1>
+          <p>وضعیت هر مدرک را برای تمام نیروگاه‌ها ببینید، فیلتر کنید و تاریخ آخرین تغییر آن را ثبت کنید.</p>
+          <div class="hero-actions">
+            <a class="primary-button" href="#documents"><span>مشاهده مدارک</span><span aria-hidden="true">↙</span></a>
+            <span class="source-note">منبع: فایل‌های اکسل همین پوشه</span>
+          </div>
+        </div>
+        <div class="hero-art" aria-hidden="true">
+          <div class="sun-disc"></div>
+          <div class="sun-ring ring-one"></div><div class="sun-ring ring-two"></div>
+          <div class="panel-grid"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+          <div class="art-caption"><span>۰۱ / ۰۹</span><span>پایش مدارک پروژه</span></div>
+        </div>
+      </section>
+
+      <section class="overview" aria-labelledby="overview-title">
+        <div class="section-head"><div><span class="section-kicker">نمای کلی</span><h2 id="overview-title">خلاصه وضعیت <span id="scope-name">همه نیروگاه‌ها</span></h2></div><span id="source-date" class="subtle"></span></div>
+        <div id="metric-cards" class="metric-grid" aria-live="polite"></div>
+        <div class="distribution-card"><div class="distribution-head"><span>توزیع وضعیت مدارک</span><strong id="approval-rate"></strong></div><div id="distribution" class="distribution-bar" role="img"></div><div id="distribution-legend" class="distribution-legend"></div></div>
+      </section>
+
+      <section class="plants-section" aria-labelledby="plants-title">
+        <div class="section-head"><div><span class="section-kicker">پروژه‌ها</span><h2 id="plants-title">نیروگاه‌ها</h2></div><span class="subtle">برای دیدن مدارک هر پروژه، کارت آن را انتخاب کنید.</span></div>
+        <div id="plant-grid" class="plant-grid"></div>
+      </section>
+
+      <section id="documents" class="documents-section" aria-labelledby="documents-title">
+        <div class="section-head documents-head"><div><span class="section-kicker">فهرست مدارک</span><h2 id="documents-title">مدارک <span id="documents-scope">همه نیروگاه‌ها</span></h2></div><span id="result-count" class="result-count"></span></div>
+        <div class="toolbar">
+          <label class="search-field"><span class="sr-only">جست‌وجوی مدرک</span><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="جست‌وجو در نام یا شماره مدرک…" autocomplete="off"></label>
+          <label class="select-wrap"><span class="sr-only">فیلتر وضعیت</span><select id="status-filter"><option value="all">همه وضعیت‌ها</option><option value="approved">تأیید شده</option><option value="pending">در انتظار تأیید</option><option value="not-sent">ارسال نشده</option><option value="revision">در انتظار اصلاح</option><option value="unknown">نامشخص</option></select></label>
+          <label class="select-wrap"><span class="sr-only">فیلتر بخش</span><select id="category-filter"><option value="all">همه بخش‌ها</option></select></label>
+          <label class="check-wrap"><input id="missing-date" type="checkbox"><span>فقط بدون تاریخ تغییر</span></label>
+          <button id="clear-filters" type="button" class="text-button">پاک کردن فیلترها</button>
+        </div>
+        <div class="table-note"><span class="note-icon">i</span><span>تاریخ را به صورت شمسی و با قالب <b>۱۴۰۵/۰۷/۲۶</b> وارد کنید. تغییرات در همین مرورگر ذخیره می‌شوند.</span></div>
+        <div class="table-shell"><table><thead><tr><th scope="col">ردیف</th><th scope="col">مدرک</th><th scope="col">شماره مدرک</th><th scope="col">بخش</th><th scope="col">وضعیت</th><th scope="col">آخرین تغییر وضعیت</th><th scope="col"> </th></tr></thead><tbody id="document-rows"></tbody></table><div id="empty-state" class="empty-state" hidden><span>⌕</span><strong>مدرکی پیدا نشد</strong><p>عبارت جست‌وجو یا فیلترها را تغییر دهید.</p></div></div>
+        <div class="pagination"><span id="page-info"></span><div><button id="prev-page" type="button" aria-label="صفحه قبل">→</button><button id="next-page" type="button" aria-label="صفحه بعد">←</button></div></div>
+      </section>
+
+      <section class="data-section" aria-labelledby="data-title"><div><span class="section-kicker">مدیریت داده</span><h2 id="data-title">خروجی و پشتیبان</h2><p>برای نگهداری تغییرات خارج از این مرورگر، فایل خروجی بگیرید. پس از تغییر فایل‌های اکسل، اسکریپت به‌روزرسانی را اجرا کنید.</p></div><div class="data-actions"><button id="export-csv" type="button" class="outline-button">دریافت CSV</button><button id="export-json" type="button" class="outline-button">پشتیبان JSON</button><button id="import-json" type="button" class="outline-button">بازیابی پشتیبان</button><input id="import-file" type="file" accept=".json,application/json" hidden></div></section>
+    </main>
+    <footer><span>اطلس مدارک نیروگاه‌های خورشیدی</span><span>اطلاعات وضعیت از فایل‌های MDL بارگذاری شده است.</span></footer>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
