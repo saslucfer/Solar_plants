@@ -15,7 +15,7 @@
     <header class="topbar">
       <div class="brand-mark" aria-hidden="true"><span>☀</span></div>
       <div class="brand-text"><strong>اطلس مدارک</strong><span>پایش پروژه‌های خورشیدی</span></div>
-      <div class="topbar-right"><span class="live-dot"></span> داده‌های ۹ نیروگاه</div>
+      <div class="topbar-right"><span class="live-dot"></span><span id="connection-status">در حال اتصال به اکسل…</span></div>
     </header>
 
     <main>
@@ -26,7 +26,7 @@
           <p>وضعیت هر مدرک را برای تمام نیروگاه‌ها ببینید، فیلتر کنید و تاریخ آخرین تغییر آن را ثبت کنید.</p>
           <div class="hero-actions">
             <a class="primary-button" href="#documents"><span>مشاهده مدارک</span><span aria-hidden="true">↙</span></a>
-            <span class="source-note">منبع: فایل‌های اکسل همین پوشه</span>
+            <span class="source-note">همگام با فایل‌های اکسل همین پوشه</span>
           </div>
         </div>
         <div class="hero-art" aria-hidden="true">
@@ -57,12 +57,12 @@
           <label class="check-wrap"><input id="missing-date" type="checkbox"><span>فقط بدون تاریخ تغییر</span></label>
           <button id="clear-filters" type="button" class="text-button">پاک کردن فیلترها</button>
         </div>
-        <div class="table-note"><span class="note-icon">i</span><span>تاریخ را به صورت شمسی و با قالب <b>۱۴۰۵/۰۷/۲۶</b> وارد کنید. تغییرات در همین مرورگر ذخیره می‌شوند.</span></div>
-        <div class="table-shell"><table><thead><tr><th scope="col">ردیف</th><th scope="col">مدرک</th><th scope="col">شماره مدرک</th><th scope="col">بخش</th><th scope="col">وضعیت</th><th scope="col">آخرین تغییر وضعیت</th><th scope="col"> </th></tr></thead><tbody id="document-rows"></tbody></table><div id="empty-state" class="empty-state" hidden><span>⌕</span><strong>مدرکی پیدا نشد</strong><p>عبارت جست‌وجو یا فیلترها را تغییر دهید.</p></div></div>
+        <div class="table-note"><span class="note-icon">i</span><span id="sync-note">تاریخ را به صورت شمسی و با قالب <b>۱۴۰۵/۰۷/۲۶</b> وارد کنید. تغییرات مستقیماً در فایل اکسل ذخیره می‌شوند.</span></div>
+        <div class="table-shell"><table><thead><tr><th scope="col">ردیف</th><th scope="col">مدرک</th><th scope="col">شماره مدرک</th><th scope="col">بخش</th><th scope="col">وضعیت</th><th scope="col">آخرین تغییر وضعیت</th></tr></thead><tbody id="document-rows"></tbody></table><div id="empty-state" class="empty-state" hidden><span>⌕</span><strong>مدرکی پیدا نشد</strong><p>عبارت جست‌وجو یا فیلترها را تغییر دهید.</p></div></div>
         <div class="pagination"><span id="page-info"></span><div><button id="prev-page" type="button" aria-label="صفحه قبل">→</button><button id="next-page" type="button" aria-label="صفحه بعد">←</button></div></div>
       </section>
 
-      <section class="data-section" aria-labelledby="data-title"><div><span class="section-kicker">مدیریت داده</span><h2 id="data-title">خروجی و پشتیبان</h2><p>برای نگهداری تغییرات خارج از این مرورگر، فایل خروجی بگیرید. پس از تغییر فایل‌های اکسل، اسکریپت به‌روزرسانی را اجرا کنید.</p></div><div class="data-actions"><button id="export-csv" type="button" class="outline-button">دریافت CSV</button><button id="export-json" type="button" class="outline-button">پشتیبان JSON</button><button id="import-json" type="button" class="outline-button">بازیابی پشتیبان</button><input id="import-file" type="file" accept=".json,application/json" hidden></div></section>
+      <section class="data-section" aria-labelledby="data-title"><div><span class="section-kicker">مدیریت داده</span><h2 id="data-title">همگام‌سازی با اکسل</h2><p>پس از ویرایش و ذخیره فایل اکسل، داده‌های صفحه به‌طور خودکار تازه می‌شوند. ویرایش‌های این صفحه نیز در همان فایل اکسل ذخیره می‌شوند.</p></div><div class="data-actions"><button id="refresh-data" type="button" class="outline-button">تازه‌سازی از اکسل</button><button id="export-csv" type="button" class="outline-button">دریافت CSV</button></div></section>
     </main>
     <footer><span>اطلس مدارک نیروگاه‌های خورشیدی</span><span>اطلاعات وضعیت از فایل‌های MDL بارگذاری شده است.</span></footer>
   </div>

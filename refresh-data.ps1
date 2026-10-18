@@ -1,5 +1,6 @@
 ﻿param(
-    [string]$SourceFolder = $PSScriptRoot
+    [string]$SourceFolder = $PSScriptRoot,
+    [switch]$PassThru
 )
 
 $ErrorActionPreference = 'Stop'
@@ -38,7 +39,7 @@ try {
             $sheet = $book.Worksheets.Item($plant.Sheet)
             $used = $sheet.UsedRange
             $lastRow = $used.Row + $used.Rows.Count - 1
-            $statusStart = if ($used.Columns.Count -eq 6) { 3 } else { 4 }
+            $statusStart = if ((Get-CellText $sheet 1 3) -eq 'Document Number') { 4 } else { 3 }
             $category = 'سایر مدارک'
             $count = 0
             $unmarked = 0
@@ -47,6 +48,7 @@ try {
                 $index = Get-CellText $sheet $row 1
                 $title = Get-CellText $sheet $row 2
                 $code = if ($statusStart -eq 4) { Get-CellText $sheet $row 3 } else { '' }
+                $lastChange = Get-CellText $sheet $row ($statusStart + 4)
                 $marks = @()
                 for ($i = 0; $i -lt 4; $i++) {
                     if ((Get-CellText $sheet $row ($statusStart + $i)) -eq '*') { $marks += $i }
@@ -61,7 +63,7 @@ try {
                     $category = $title
                     continue
                 }
-                if ($title -match '^Master Document Registration' -and $marks.Count -eq 0) { continue }
+                if ($title -match '^Master Document Registration' -and $marks.Count -eq 0 -and $row -le 3) { continue }
                 if ($row -le 2 -and $marks.Count -eq 0) { continue }
 
                 $status = if ($marks.Count -eq 1) { @('approved', 'pending', 'not-sent', 'revision')[$marks[0]] } else { 'unknown' }
@@ -78,6 +80,7 @@ try {
                     title = $title
                     code = $code
                     status = $status
+                    lastChange = $lastChange
                     sourceRow = $row
                 })
                 $count++
@@ -105,6 +108,9 @@ $payload = [ordered]@{
     generatedAt = (Get-Date).ToUniversalTime().ToString('o')
     plants = @($plantInfo.ToArray())
     documents = @($records.ToArray())
+}
+if ($PassThru) {
+    return $payload
 }
 $json = ConvertTo-Json -InputObject $payload -Depth 7 -Compress
 $output = Join-Path $PSScriptRoot 'data.js'

@@ -1,7 +1,7 @@
-(() => {
+(async () => {
   'use strict';
 
-  const data = window.MDL_DATA;
+  let data = window.MDL_DATA;
   if (!data || !Array.isArray(data.documents) || !Array.isArray(data.plants)) {
     document.body.innerHTML = '<main style="padding:3rem;font-family:Tahoma;direction:rtl">فایل داده‌ها بارگذاری نشد. لطفاً فایل refresh-data.ps1 را اجرا کنید.</main>';
     return;
@@ -15,13 +15,15 @@
     unknown: { label: 'نامشخص', color: '#a79ab8' }
   };
   const statusOrder = Object.keys(STATUS);
-  const plantMap = new Map(data.plants.map(plant => [plant.id, plant]));
-  const documentMap = new Map(data.documents.map(doc => [doc.id, doc]));
-  const storageKey = 'solar-mdl-dashboard-v1';
+  let plantMap = new Map(data.plants.map(plant => [plant.id, plant]));
+  let documentMap = new Map(data.documents.map(doc => [doc.id, doc]));
   const pageSize = 25;
   let currentPlant = 'all';
   let page = 1;
-  let overrides = {};
+  let live = false;
+  let currentVersion = '';
+  let refreshing = false;
+  const writing = new Set();
   let toastTimer;
 
   const $ = id => document.getElementById(id);
@@ -31,32 +33,76 @@
   const collator = new Intl.Collator('fa');
   const persianCalendar = new Intl.DateTimeFormat('en-US-u-ca-persian', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: 'Asia/Tehran' });
 
-  function loadOverrides() {
-    try {
-      const saved = JSON.parse(localStorage.getItem(storageKey) || '{}');
-      if (saved && typeof saved === 'object' && !Array.isArray(saved)) overrides = saved;
-    } catch { overrides = {}; }
-  }
-  function saveOverrides() {
-    try { localStorage.setItem(storageKey, JSON.stringify(overrides)); }
-    catch { showToast('ذخیره‌سازی مرورگر در دسترس نیست؛ از پشتیبان JSON استفاده کنید.'); }
-  }
-  function effectiveStatus(doc) {
-    const status = overrides[doc.id]?.status;
-    return STATUS[status] ? status : doc.status;
-  }
-  function effectiveDate(doc) { return overrides[doc.id]?.lastChange || ''; }
-  function updateOverride(id, patch) {
-    overrides[id] = { ...(overrides[id] || {}), ...patch };
-    if (!overrides[id].status && !overrides[id].lastChange) delete overrides[id];
-    saveOverrides();
-  }
+  function effectiveStatus(doc) { return doc.status; }
+  function effectiveDate(doc) { return doc.lastChange || ''; }
   function showToast(message) {
     const toast = $('toast');
     toast.textContent = message;
     toast.classList.add('show');
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => toast.classList.remove('show'), 3300);
+  }
+  function updateConnectionLabel() {
+    $('connection-status').textContent = live ? 'متصل به فایل‌های اکسل' : 'نمای آفلاین؛ بدون امکان ویرایش';
+    $('sync-note').textContent = live
+      ? 'تاریخ را به صورت شمسی، مانند ۱۴۰۵/۰۷/۲۶ وارد کنید. تغییرات مستقیماً در فایل اکسل ذخیره می‌شوند.'
+      : 'برای ویرایش و همگام‌سازی با اکسل، فایل start-dashboard.cmd را اجرا کنید.';
+    $('refresh-data').disabled = !live;
+  }
+  function updateSourceDate() {
+    $('source-date').textContent = `خواندن از اکسل: ${new Intl.DateTimeFormat('fa-IR-u-ca-persian', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tehran' }).format(new Date(data.generatedAt))}`;
+  }
+  async function readResponse(response) {
+    const body = await response.json();
+    if (!response.ok) throw new Error(body.error || 'ارتباط با فایل اکسل برقرار نشد.');
+    return body;
+  }
+  async function refreshFromExcel(showMessage = false) {
+    if (refreshing || writing.size) return;
+    refreshing = true;
+    try {
+      const result = await readResponse(await fetch('/api/data', { cache: 'no-store' }));
+      data = result.data;
+      currentVersion = result.version;
+      plantMap = new Map(data.plants.map(plant => [plant.id, plant]));
+      documentMap = new Map(data.documents.map(doc => [doc.id, doc]));
+      live = true;
+      if (currentPlant !== 'all' && !plantMap.has(currentPlant)) currentPlant = 'all';
+      updateConnectionLabel(); updateSourceDate(); renderAll();
+      if (showMessage) showToast('آخرین تغییرات فایل‌های اکسل بارگذاری شد.');
+    } catch (error) {
+      if (showMessage) showToast(error.message);
+      if (!live) { updateConnectionLabel(); renderAll(); }
+    } finally { refreshing = false; }
+  }
+  async function checkExcelVersion() {
+    if (!live || refreshing || writing.size || document.activeElement?.classList.contains('date-input')) return;
+    try {
+      const result = await readResponse(await fetch('/api/version', { cache: 'no-store' }));
+      if (result.version !== currentVersion) await refreshFromExcel();
+    } catch { $('connection-status').textContent = 'ارتباط با اکسل قطع شده است'; }
+  }
+  async function saveDocument(doc, status, lastChange) {
+    if (!live) { showToast('برای ویرایش، start-dashboard.cmd را اجرا کنید.'); return false; }
+    if (writing.has(doc.id)) return false;
+    writing.add(doc.id);
+    try {
+      const response = await fetch('/api/document', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: doc.id, status, lastChange, expectedStatus: doc.status, expectedLastChange: doc.lastChange || '' })
+      });
+      const result = await readResponse(response);
+      Object.assign(doc, result.document);
+      currentVersion = result.version;
+      data.generatedAt = new Date().toISOString();
+      updateSourceDate();
+      return true;
+    } catch (error) {
+      showToast(error.message);
+      if (/تغییر کرده|جابه‌جا شده/.test(error.message)) setTimeout(() => refreshFromExcel(), 0);
+      return false;
+    } finally { writing.delete(doc.id); }
   }
   function el(tag, className, text) {
     const node = document.createElement(tag);
@@ -194,24 +240,17 @@
     statusSelect.setAttribute('aria-label', `وضعیت ${doc.title}`);
     statusOrder.forEach(key => statusSelect.append(new Option(STATUS[key].label, key)));
     statusSelect.value = status;
+    statusSelect.disabled = !live;
     statusWrap.append(statusSelect); statusCell.append(statusWrap); row.append(statusCell);
     const dateCell = el('td', 'date-cell');
     const dateWrap = el('div', 'date-entry');
     const dateInput = el('input', 'date-input');
     dateInput.type = 'text'; dateInput.inputMode = 'numeric'; dateInput.placeholder = '۱۴۰۵/۰۷/۲۶';
     dateInput.maxLength = 10; dateInput.value = persianDigits(effectiveDate(doc));
+    dateInput.disabled = !live;
     dateInput.setAttribute('aria-label', `تاریخ آخرین تغییر وضعیت ${doc.title}`);
-    const today = el('button', 'today-button', 'امروز'); today.type = 'button'; today.title = 'ثبت تاریخ امروز به تقویم شمسی';
+    const today = el('button', 'today-button', 'امروز'); today.type = 'button'; today.title = 'ثبت تاریخ امروز به تقویم شمسی'; today.disabled = !live;
     dateWrap.append(dateInput, today); dateCell.append(dateWrap); row.append(dateCell);
-    const resetCell = el('td');
-    if (overrides[doc.id]?.status && overrides[doc.id].status !== doc.status) {
-      const reset = el('button', 'reset-button', 'بازگشت به اکسل'); reset.type = 'button';
-      reset.setAttribute('aria-label', `بازگشت وضعیت ${doc.title} به فایل اکسل`);
-      resetCell.append(reset);
-    } else if (effectiveDate(doc)) {
-      resetCell.append(el('span', 'edited-dot'));
-    }
-    row.append(resetCell);
     return row;
   }
   function renderDocuments() {
@@ -248,28 +287,8 @@
     });
     download(`solar-mdl-${dateStamp()}.csv`, '\ufeff' + [columns, ...rows].map(row => row.map(csvCell).join(',')).join('\r\n'), 'text/csv;charset=utf-8');
   }
-  function exportJson() {
-    download(`solar-mdl-backup-${dateStamp()}.json`, JSON.stringify({ format: 'solar-mdl-overrides-v1', exportedAt: new Date().toISOString(), overrides }, null, 2), 'application/json;charset=utf-8');
-  }
-  async function importJson(file) {
-    try {
-      const backup = JSON.parse(await file.text());
-      if (backup.format !== 'solar-mdl-overrides-v1' || !backup.overrides || typeof backup.overrides !== 'object') throw new Error('invalid');
-      let count = 0;
-      for (const [id, value] of Object.entries(backup.overrides)) {
-        if (!documentMap.has(id) || !value || typeof value !== 'object') continue;
-        const patch = {};
-        if (STATUS[value.status]) patch.status = value.status;
-        if (typeof value.lastChange === 'string' && parsePersianDate(value.lastChange)) patch.lastChange = parsePersianDate(value.lastChange).date;
-        if (Object.keys(patch).length) { overrides[id] = { ...(overrides[id] || {}), ...patch }; count++; }
-      }
-      saveOverrides(); renderAll(); showToast(`${faNumber(count)} تغییر از پشتیبان بازیابی شد.`);
-    } catch { showToast('فایل پشتیبان معتبر نیست.'); }
-  }
-
-  loadOverrides();
-  $('source-date').textContent = `به‌روزرسانی داده‌ها: ${new Intl.DateTimeFormat('fa-IR-u-ca-persian', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Tehran' }).format(new Date(data.generatedAt))}`;
-  renderAll();
+  updateConnectionLabel(); updateSourceDate(); renderAll();
+  if (location.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(location.hostname)) await refreshFromExcel();
 
   $('plant-grid').addEventListener('click', event => {
     const button = event.target.closest('[data-plant]');
@@ -283,38 +302,44 @@
   });
   $('prev-page').addEventListener('click', () => { if (page > 1) { page--; renderDocuments(); } });
   $('next-page').addEventListener('click', () => { page++; renderDocuments(); });
-  $('document-rows').addEventListener('change', event => {
+  $('document-rows').addEventListener('change', async event => {
     if (!event.target.matches('.status-select')) return;
     const id = event.target.closest('tr').dataset.id;
     const doc = documentMap.get(id);
-    updateOverride(id, { status: event.target.value === doc.status ? '' : event.target.value, lastChange: '' });
+    if (event.target.value === doc.status) return;
+    event.target.disabled = true;
+    const saved = await saveDocument(doc, event.target.value, '');
     renderMetrics(); renderPlants(); renderDocuments();
-    const currentRow = [...$('document-rows').rows].find(row => row.dataset.id === id);
-    currentRow?.querySelector('.date-input')?.focus();
-    showToast('وضعیت ذخیره شد. تاریخ آخرین تغییر را نیز ثبت کنید.');
+    if (saved) {
+      const currentRow = [...$('document-rows').rows].find(row => row.dataset.id === id);
+      currentRow?.querySelector('.date-input')?.focus();
+      showToast('وضعیت در اکسل ذخیره شد. تاریخ آخرین تغییر را نیز ثبت کنید.');
+    }
   });
-  function saveDateInput(input) {
+  async function saveDateInput(input) {
     const result = parsePersianDate(input.value);
     if (!result) { input.classList.add('invalid'); showToast('تاریخ شمسی معتبر نیست. نمونه: ۱۴۰۵/۰۷/۲۶'); return; }
     input.classList.remove('invalid');
-    updateOverride(input.closest('tr').dataset.id, { lastChange: result.date });
+    const doc = documentMap.get(input.closest('tr').dataset.id);
+    if (result.date === effectiveDate(doc)) { input.value = persianDigits(result.date); return; }
+    input.disabled = true;
+    const saved = await saveDocument(doc, doc.status, result.date);
+    input.disabled = false;
+    if (!saved) { input.value = persianDigits(effectiveDate(doc)); return; }
     input.value = persianDigits(result.date);
     if ($('missing-date').checked) renderDocuments();
-    showToast(result.date ? 'تاریخ آخرین تغییر ذخیره شد.' : 'تاریخ پاک شد.');
+    showToast(result.date ? 'تاریخ آخرین تغییر در اکسل ذخیره شد.' : 'تاریخ در اکسل پاک شد.');
   }
-  $('document-rows').addEventListener('focusout', event => { if (event.target.matches('.date-input')) saveDateInput(event.target); });
+  $('document-rows').addEventListener('focusout', event => { if (event.target.matches('.date-input') && !event.relatedTarget?.matches('.today-button')) saveDateInput(event.target); });
   $('document-rows').addEventListener('keydown', event => { if (event.target.matches('.date-input') && event.key === 'Enter') event.target.blur(); });
   $('document-rows').addEventListener('click', event => {
     const row = event.target.closest('tr'); if (!row) return;
     if (event.target.matches('.today-button')) {
       const input = row.querySelector('.date-input'); input.value = persianDigits(todayPersian()); saveDateInput(input);
     }
-    if (event.target.matches('.reset-button')) {
-      updateOverride(row.dataset.id, { status: '', lastChange: '' }); renderMetrics(); renderPlants(); renderDocuments(); showToast('وضعیت از فایل اکسل بازیابی شد. تاریخ تغییر را دوباره ثبت کنید.');
-    }
   });
   $('export-csv').addEventListener('click', exportCsv);
-  $('export-json').addEventListener('click', exportJson);
-  $('import-json').addEventListener('click', () => $('import-file').click());
-  $('import-file').addEventListener('change', event => { if (event.target.files[0]) importJson(event.target.files[0]); event.target.value = ''; });
+  $('refresh-data').addEventListener('click', () => refreshFromExcel(true));
+  window.addEventListener('focus', checkExcelVersion);
+  setInterval(checkExcelVersion, 7000);
 })();
