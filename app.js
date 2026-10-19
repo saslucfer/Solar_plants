@@ -55,6 +55,9 @@
   function updateSourceDate() {
     $('source-date').textContent = `خواندن از اکسل: ${new Intl.DateTimeFormat('fa-IR-u-ca-persian', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tehran' }).format(new Date(data.generatedAt))}`;
   }
+  function updateDashboardDate() {
+    $('dashboard-date').textContent = `تاریخ امروز: ${persianDigits(todayPersian())}`;
+  }
   async function readResponse(response) {
     const body = await response.json();
     if (!response.ok) throw new Error(body.error || 'ارتباط با فایل اکسل برقرار نشد.');
@@ -316,7 +319,7 @@
     const dateCell = el('td', 'date-cell');
     const dateWrap = el('div', 'date-entry');
     const dateInput = el('input', 'date-input');
-    dateInput.type = 'text'; dateInput.inputMode = 'numeric'; dateInput.placeholder = '۱۴۰۵/۰۷/۲۶';
+    dateInput.type = 'text'; dateInput.inputMode = 'numeric'; dateInput.placeholder = persianDigits(todayPersian());
     dateInput.maxLength = 10; dateInput.value = persianDigits(effectiveDate(doc));
     dateInput.disabled = !live;
     dateInput.setAttribute('aria-label', `تاریخ آخرین تغییر وضعیت ${doc.title}`);
@@ -360,7 +363,7 @@
     });
     download(`solar-mdl-${dateStamp()}.csv`, '\ufeff' + [columns, ...rows].map(row => row.map(csvCell).join(',')).join('\r\n'), 'text/csv;charset=utf-8');
   }
-  updateConnectionLabel(); updateSourceDate(); renderAll();
+  updateConnectionLabel(); updateDashboardDate(); updateSourceDate(); renderAll();
   if (location.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(location.hostname)) await refreshFromExcel();
 
   $('plant-grid').addEventListener('click', event => {
@@ -392,7 +395,7 @@
   async function saveDateInput(input) {
     if (input.disabled) return;
     const result = parsePersianDate(input.value);
-    if (!result) { input.classList.add('invalid'); showToast('تاریخ شمسی معتبر نیست. نمونه: ۱۴۰۵/۰۷/۲۶'); return; }
+    if (!result) { input.classList.add('invalid'); showToast(`تاریخ شمسی معتبر نیست. نمونه: ${persianDigits(todayPersian())}`); return; }
     input.classList.remove('invalid');
     const doc = documentMap.get(input.closest('tr').dataset.id);
     if (result.date === effectiveDate(doc)) { input.value = persianDigits(result.date); return; }
@@ -418,5 +421,5 @@
   $('refresh-data').addEventListener('click', () => refreshFromExcel(true));
   window.addEventListener('focus', checkExcelVersion);
   setInterval(checkExcelVersion, 7000);
-  setInterval(() => { if (overdueCutoff() !== currentOverdueCutoff) renderOverdue(); }, 60000);
+  setInterval(() => { updateDashboardDate(); if (overdueCutoff() !== currentOverdueCutoff) renderOverdue(); }, 60000);
 })();

@@ -15,7 +15,7 @@
     <header class="topbar">
       <div class="brand-mark" aria-hidden="true"><span>☀</span></div>
       <div class="brand-text"><strong>اطلس مدارک</strong><span>پایش پروژه‌های خورشیدی</span></div>
-      <div class="topbar-right"><span class="live-dot"></span><span id="connection-status">در حال اتصال به اکسل…</span></div>
+      <div class="topbar-right"><span class="connection-line"><span class="live-dot"></span><span id="connection-status">در حال اتصال به اکسل…</span></span><span id="dashboard-date" class="dashboard-date"></span></div>
     </header>
 
     <main>
@@ -63,7 +63,7 @@
           <label class="check-wrap"><input id="missing-date" type="checkbox"><span>فقط بدون تاریخ تغییر</span></label>
           <button id="clear-filters" type="button" class="text-button">پاک کردن فیلترها</button>
         </div>
-        <div class="table-note"><span class="note-icon">i</span><span id="sync-note">تاریخ را به صورت شمسی و با قالب <b>۱۴۰۵/۰۷/۲۶</b> وارد کنید. تغییرات مستقیماً در فایل اکسل ذخیره می‌شوند.</span></div>
+        <div class="table-note"><span class="note-icon">i</span><span id="sync-note">تاریخ را به صورت شمسی وارد کنید. تغییرات مستقیماً در فایل اکسل ذخیره می‌شوند.</span></div>
         <div class="table-shell"><table><thead><tr><th scope="col">ردیف</th><th scope="col">مدرک</th><th scope="col">شماره مدرک</th><th scope="col">بخش</th><th scope="col">وضعیت</th><th scope="col">آخرین تغییر وضعیت</th></tr></thead><tbody id="document-rows"></tbody></table><div id="empty-state" class="empty-state" hidden><span>⌕</span><strong>مدرکی پیدا نشد</strong><p>عبارت جست‌وجو یا فیلترها را تغییر دهید.</p></div></div>
         <div class="pagination"><span id="page-info"></span><div><button id="prev-page" type="button" aria-label="صفحه قبل">→</button><button id="next-page" type="button" aria-label="صفحه بعد">←</button></div></div>
       </section>

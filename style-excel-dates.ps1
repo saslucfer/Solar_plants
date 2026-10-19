@@ -2,6 +2,8 @@
 
 $ErrorActionPreference = 'Stop'
 $SourceFolder = [IO.Path]::GetFullPath($SourceFolder)
+. (Join-Path $PSScriptRoot 'dashboard-date.ps1')
+$today = Get-PersianDashboardDate
 $files = @('Ali Abad MDL.xlsx', 'Damghan MDL.xlsx', 'Evaz MDL.xlsx', 'Hosnije MDL.xlsx', 'Lar MDL.xlsx', 'Marave Tape MDL.xlsx', 'Natanz MDL.xlsx', 'Safi Abad MDL.xlsx', 'Shahreza MDL.xlsx')
 
 function Get-OleColor([string]$hex) {
@@ -58,7 +60,7 @@ try {
                 $header.Borders.Item(9).Color = $teal
 
                 $hint = $sheet.Cells.Item(2, $dateColumn)
-                $hint.Value2 = 'تاریخ شمسی: ۱۴۰۵/۰۷/۲۶'
+                $hint.Value2 = "تاریخ امروز: $today"
                 $hint.Interior.Color = $mint
                 $hint.Font.Name = 'Tahoma'
                 $hint.Font.Size = 9

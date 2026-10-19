@@ -6,15 +6,19 @@
 
 $ErrorActionPreference = 'Stop'
 $SourceFolder = [IO.Path]::GetFullPath($SourceFolder)
+. (Join-Path $PSScriptRoot 'dashboard-date.ps1')
 $utf8 = [Text.UTF8Encoding]::new($false)
 $script:currentData = $null
 $script:currentVersion = ''
+$script:headerDate = ''
+$script:pendingHeaderFiles = @()
+$script:lastHeaderAttemptUtc = [DateTime]::MinValue
+$workbookNames = @('Ali Abad MDL.xlsx', 'Damghan MDL.xlsx', 'Evaz MDL.xlsx', 'Hosnije MDL.xlsx', 'Lar MDL.xlsx', 'Marave Tape MDL.xlsx', 'Natanz MDL.xlsx', 'Safi Abad MDL.xlsx', 'Shahreza MDL.xlsx')
 $statusKeys = @('approved', 'pending', 'not-sent', 'revision')
 $allowedStatuses = $statusKeys + @('unknown')
 
 function Get-WorkbookVersion {
-    $names = @('Ali Abad MDL.xlsx', 'Damghan MDL.xlsx', 'Evaz MDL.xlsx', 'Hosnije MDL.xlsx', 'Lar MDL.xlsx', 'Marave Tape MDL.xlsx', 'Natanz MDL.xlsx', 'Safi Abad MDL.xlsx', 'Shahreza MDL.xlsx')
-    $parts = foreach ($name in $names) {
+    $parts = foreach ($name in $workbookNames) {
         $file = Get-Item -LiteralPath (Join-Path $SourceFolder $name)
         "$name/$($file.Length)/$($file.LastWriteTimeUtc.Ticks)"
     }
@@ -25,6 +29,7 @@ function Get-WorkbookVersion {
 }
 
 function Update-Cache {
+    Ensure-HeaderDate
     $version = Get-WorkbookVersion
     if ($null -eq $script:currentData -or $version -ne $script:currentVersion) {
         $script:currentData = & (Join-Path $PSScriptRoot 'refresh-data.ps1') -SourceFolder $SourceFolder -PassThru
@@ -57,7 +62,7 @@ function Convert-MdlDate([string]$value) {
         $value = $value.Replace([string]$digits[$i], [string]$i).Replace([string]$digits[$i + 10], [string]$i)
     }
     $value = $value.Trim().Replace('-', '/').Replace('.', '/')
-    if ($value -notmatch '^(\d{4})/(\d{1,2})/(\d{1,2})$') { throw '[400] تاریخ شمسی باید به صورت ۱۴۰۵/۰۷/۲۶ باشد.' }
+    if ($value -notmatch '^(\d{4})/(\d{1,2})/(\d{1,2})$') { throw "[400] تاریخ شمسی باید به صورت $(Get-PersianDashboardDate) باشد." }
     $year = [int]$Matches[1]; $month = [int]$Matches[2]; $day = [int]$Matches[3]
     if ($year -lt 1200 -or $year -gt 1600) { throw '[400] سال تاریخ شمسی معتبر نیست.' }
     try { [void]([Globalization.PersianCalendar]::new().ToDateTime($year, $month, $day, 0, 0, 0, 0)) }
@@ -69,6 +74,67 @@ function Convert-ToPersianDigits([string]$value) {
     $persian = '۰۱۲۳۴۵۶۷۸۹'
     for ($i = 0; $i -lt 10; $i++) { $value = $value.Replace([string]$i, [string]$persian[$i]) }
     return $value
+}
+
+function Sync-WorkbookHeaderDates([string]$today, [string[]]$names) {
+    $failed = [System.Collections.Generic.List[string]]::new()
+    $backupFolder = $null
+    $excel = New-Object -ComObject Excel.Application
+    $excel.Visible = $false
+    $excel.DisplayAlerts = $false
+    $excel.AskToUpdateLinks = $false
+    try {
+        foreach ($name in $names) {
+            $path = Join-Path $SourceFolder $name
+            $book = $null
+            try {
+                $book = $excel.Workbooks.Open($path, 0, $false)
+                if ($book.ReadOnly) { throw 'فایل برای ویرایش در Excel باز است.' }
+                $changes = [System.Collections.Generic.List[object]]::new()
+                foreach ($sheet in $book.Worksheets) {
+                    $dateColumn = if ((Get-CellText $sheet 1 3) -eq 'Document Number') { 8 } else { 7 }
+                    if ((Get-CellText $sheet 2 $dateColumn) -ne "تاریخ امروز: $today") {
+                        $changes.Add([pscustomobject]@{ Sheet = $sheet; Column = $dateColumn })
+                    }
+                }
+                if ($changes.Count) {
+                    if (-not $backupFolder) {
+                        $backupFolder = Join-Path $SourceFolder ('workbook-backups\before-header-date-' + (Get-Date -Format 'yyyyMMdd-HHmmss-fff'))
+                        New-Item -ItemType Directory -Path $backupFolder -ErrorAction Stop | Out-Null
+                    }
+                    Copy-Item -LiteralPath $path -Destination (Join-Path $backupFolder $name) -ErrorAction Stop
+                    foreach ($change in $changes) {
+                        $cell = $change.Sheet.Cells.Item(2, $change.Column)
+                        $cell.NumberFormat = '@'
+                        $cell.Value2 = "تاریخ امروز: $today"
+                    }
+                    $book.Save()
+                }
+            }
+            catch {
+                $failed.Add($name)
+                Write-Warning "تاریخ بالای فایل $name به‌روز نشد: $($_.Exception.Message)"
+            }
+            finally {
+                if ($null -ne $book) { $book.Close($false) }
+            }
+        }
+    }
+    finally {
+        $excel.Quit()
+        [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($excel)
+    }
+    return $failed.ToArray()
+}
+
+function Ensure-HeaderDate {
+    $today = Get-PersianDashboardDate
+    $sameDay = $today -eq $script:headerDate
+    if ($sameDay -and (-not $script:pendingHeaderFiles.Count -or ([DateTime]::UtcNow - $script:lastHeaderAttemptUtc).TotalMinutes -lt 5)) { return }
+    $names = if ($sameDay) { $script:pendingHeaderFiles } else { $workbookNames }
+    $script:pendingHeaderFiles = @(Sync-WorkbookHeaderDates $today $names)
+    $script:headerDate = $today
+    $script:lastHeaderAttemptUtc = [DateTime]::UtcNow
 }
 
 function Save-Document($request) {
@@ -107,7 +173,7 @@ function Save-Document($request) {
         $dateColumn = $statusStart + 4
         if (-not (Get-CellText $sheet 1 $dateColumn)) {
             $sheet.Cells.Item(1, $dateColumn).Value2 = 'آخرین تغییر وضعیت'
-            $sheet.Cells.Item(2, $dateColumn).Value2 = 'تاریخ شمسی: ۱۴۰۵/۰۷/۲۶'
+            $sheet.Cells.Item(2, $dateColumn).Value2 = "تاریخ امروز: $(Get-PersianDashboardDate)"
             $sheet.Columns.Item($dateColumn).ColumnWidth = 30
         }
         $sheet.Cells.Item($row, $dateColumn).NumberFormat = '@'
@@ -131,6 +197,7 @@ $prefix = "http://localhost:$Port/"
 $listener = [Net.HttpListener]::new()
 $listener.Prefixes.Add($prefix)
 try {
+    Ensure-HeaderDate
     $listener.Start()
     Write-Output "Dashboard running at $prefix"
     Write-Output 'Keep this PowerShell window open. Close it to stop the dashboard.'
@@ -142,6 +209,7 @@ try {
         try {
             $path = $request.Url.AbsolutePath
             if ($request.HttpMethod -eq 'GET' -and $path -eq '/api/version') {
+                Ensure-HeaderDate
                 Send-Json $response 200 ([ordered]@{ version = Get-WorkbookVersion })
             }
             elseif ($request.HttpMethod -eq 'GET' -and $path -eq '/api/data') {
