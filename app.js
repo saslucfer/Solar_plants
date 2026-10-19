@@ -215,23 +215,40 @@
       card.append(heading);
       if (!overdue.length) {
         const undated = unapproved.filter(doc => !normalizedDocumentDate(doc)).length;
-        const message = undated
-          ? `تاریخ ${faNumber(undated)} مدرک تأییدنشده ثبت نشده است؛ تأخیر آن‌ها قابل محاسبه نیست.`
-          : 'مدرک تأییدنشده با تأخیر بیش از یک هفته ثبت نشده است.';
-        card.append(el('p', 'overdue-empty', message));
-        return card;
+        if (undated) card.append(el('p', 'overdue-empty', `تاریخ ${faNumber(undated)} مدرک تأییدنشده ثبت نشده است؛ تأخیر آن‌ها قابل محاسبه نیست.`));
       }
-      const list = el('ul', 'overdue-list');
-      overdue.forEach(({ doc, date }) => {
-        const item = el('li', 'overdue-item');
-        item.append(el('strong', 'overdue-document', doc.title));
-        const details = el('div', 'overdue-details');
-        if (doc.code) details.append(el('span', 'overdue-code', doc.code));
-        details.append(el('span', '', STATUS[effectiveStatus(doc)].label), el('span', 'overdue-date', `آخرین تغییر: ${persianDigits(date)}`));
-        item.append(details);
-        list.append(item);
+      const groups = [
+        { status: 'pending', label: 'در انتظار تأیید' },
+        { status: 'revision', label: 'در انتظار اصلاح' },
+        { status: 'other', label: 'سایر وضعیت‌های تأییدنشده' }
+      ];
+      groups.forEach(group => {
+        const documents = overdue.filter(({ doc }) => group.status === 'other'
+          ? !['pending', 'revision'].includes(effectiveStatus(doc))
+          : effectiveStatus(doc) === group.status);
+        if (group.status === 'other' && !documents.length) return;
+        const section = el('section', `overdue-group overdue-group-${group.status}`);
+        const groupHead = el('div', 'overdue-group-head');
+        groupHead.append(el('h4', '', group.label), el('span', 'overdue-group-count', `${faNumber(documents.length)} مدرک`));
+        section.append(groupHead);
+        if (!documents.length) {
+          section.append(el('p', 'overdue-group-empty', 'مدرکی ثبت نشده است.'));
+        } else {
+          const list = el('ul', 'overdue-list');
+          documents.forEach(({ doc, date }) => {
+            const item = el('li', 'overdue-item');
+            item.append(el('strong', 'overdue-document', doc.title));
+            const details = el('div', 'overdue-details');
+            if (doc.code) details.append(el('span', 'overdue-code', doc.code));
+            if (group.status === 'other') details.append(el('span', '', STATUS[effectiveStatus(doc)].label));
+            details.append(el('span', 'overdue-date', `آخرین تغییر: ${persianDigits(date)}`));
+            item.append(details);
+            list.append(item);
+          });
+          section.append(list);
+        }
+        card.append(section);
       });
-      card.append(list);
       return card;
     });
     $('overdue-total').textContent = `${faNumber(total)} مدرک در ${faNumber(data.plants.length)} نیروگاه`;
