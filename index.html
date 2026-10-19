@@ -7,6 +7,7 @@
   <title>داشبورد مدارک نیروگاه‌های خورشیدی</title>
   <meta name="description" content="نمای وضعیت فهرست اصلی مدارک نیروگاه‌های خورشیدی و ثبت تاریخ آخرین تغییر وضعیت">
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="theme.css">
   <script src="data.js" defer></script>
   <script src="app.js" defer></script>
 </head>
@@ -18,12 +19,19 @@
       <div class="topbar-right"><span class="connection-line"><span class="live-dot"></span><span id="connection-status">در حال اتصال به اکسل…</span></span><span id="dashboard-date" class="dashboard-date"></span></div>
     </header>
 
+    <nav class="section-nav" aria-label="بخش‌های داشبورد">
+      <a href="#overview"><span aria-hidden="true">۰۱</span> نمای کلی</a>
+      <a href="#plants"><span aria-hidden="true">۰۲</span> نیروگاه‌ها</a>
+      <a href="#overdue"><span aria-hidden="true">۰۳</span> مدارک نیازمند پیگیری</a>
+      <a href="#documents"><span aria-hidden="true">۰۴</span> فهرست مدارک</a>
+    </nav>
+
     <main>
       <section class="hero" aria-labelledby="page-title">
         <div class="hero-copy">
           <div class="eyebrow"><span class="eyebrow-line"></span> MASTER DOCUMENT LIST</div>
-          <h1 id="page-title">وضعیت مدارک<br><em>در یک نگاه.</em></h1>
-          <p>وضعیت هر مدرک را برای تمام نیروگاه‌ها ببینید، فیلتر کنید و تاریخ آخرین تغییر آن را ثبت کنید.</p>
+          <h1 id="page-title">مدیریت مدارک<br><em>نیروگاه‌های خورشیدی</em></h1>
+          <p>وضعیت پروژه‌ها را در یک نگاه ببینید، مدارک نیازمند پیگیری را پیدا کنید و آخرین تغییرات را ثبت کنید.</p>
           <div class="hero-actions">
             <a class="primary-button" href="#documents"><span>مشاهده مدارک</span><span aria-hidden="true">↙</span></a>
             <span class="source-note">همگام با فایل‌های اکسل همین پوشه</span>
@@ -37,18 +45,18 @@
         </div>
       </section>
 
-      <section class="overview" aria-labelledby="overview-title">
+      <section id="overview" class="overview" aria-labelledby="overview-title">
         <div class="section-head"><div><span class="section-kicker">نمای کلی</span><h2 id="overview-title">خلاصه وضعیت <span id="scope-name">همه نیروگاه‌ها</span></h2></div><span id="source-date" class="subtle"></span></div>
         <div id="metric-cards" class="metric-grid" aria-live="polite"></div>
         <div class="distribution-card"><div class="distribution-head"><span>توزیع وضعیت مدارک</span><strong id="approval-rate"></strong></div><div id="distribution" class="distribution-bar" role="img"></div><div id="distribution-legend" class="distribution-legend"></div></div>
       </section>
 
-      <section class="plants-section" aria-labelledby="plants-title">
+      <section id="plants" class="plants-section" aria-labelledby="plants-title">
         <div class="section-head"><div><span class="section-kicker">پروژه‌ها</span><h2 id="plants-title">نیروگاه‌ها</h2></div><span class="subtle">برای دیدن مدارک هر پروژه، کارت آن را انتخاب کنید.</span></div>
         <div id="plant-grid" class="plant-grid"></div>
       </section>
 
-      <section class="overdue-section" aria-labelledby="overdue-title">
+      <section id="overdue" class="overdue-section" aria-labelledby="overdue-title">
         <div class="section-head"><div><span class="section-kicker">پیگیری مدارک</span><h2 id="overdue-title">مدارک تأییدنشده با گذشت بیش از یک هفته</h2></div><span id="overdue-total" class="result-count" aria-live="polite"></span></div>
         <p class="overdue-note">برای هر نیروگاه، مدارک «در انتظار تأیید» و «در انتظار اصلاح» با تاریخ آخرین تغییر قدیمی‌تر از ۷ روز، جداگانه نمایش داده می‌شوند. مدارک بدون تاریخ در این فهرست نمی‌آیند.</p>
         <div id="overdue-grid" class="overdue-grid" aria-live="polite"></div>
@@ -64,6 +72,7 @@
           <button id="clear-filters" type="button" class="text-button">پاک کردن فیلترها</button>
         </div>
         <div class="table-note"><span class="note-icon">i</span><span id="sync-note">تاریخ را به صورت شمسی وارد کنید. تغییرات مستقیماً در فایل اکسل ذخیره می‌شوند.</span></div>
+        <p class="mobile-table-hint">برای دیدن همهٔ ستون‌ها، جدول را به طرفین بکشید.</p>
         <div class="table-shell"><table><thead><tr><th scope="col">ردیف</th><th scope="col">مدرک</th><th scope="col">شماره مدرک</th><th scope="col">بخش</th><th scope="col">وضعیت</th><th scope="col">آخرین تغییر وضعیت</th></tr></thead><tbody id="document-rows"></tbody></table><div id="empty-state" class="empty-state" hidden><span>⌕</span><strong>مدرکی پیدا نشد</strong><p>عبارت جست‌وجو یا فیلترها را تغییر دهید.</p></div></div>
         <div class="pagination"><span id="page-info"></span><div><button id="prev-page" type="button" aria-label="صفحه قبل">→</button><button id="next-page" type="button" aria-label="صفحه بعد">←</button></div></div>
       </section>

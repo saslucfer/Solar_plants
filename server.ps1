@@ -227,9 +227,9 @@ try {
                 Send-Json $response 200 $result
             }
             elseif ($request.HttpMethod -eq 'GET') {
-                $filename = switch ($path) { '/' { 'index.html' } '/index.html' { 'index.html' } '/style.css' { 'style.css' } '/app.js' { 'app.js' } '/data.js' { 'data.js' } default { $null } }
+                $filename = switch ($path) { '/' { 'index.html' } '/index.html' { 'index.html' } '/style.css' { 'style.css' } '/theme.css' { 'theme.css' } '/fonts/b-zar.ttf' { 'fonts/b-zar.ttf' } '/fonts/b-zar-bold.ttf' { 'fonts/b-zar-bold.ttf' } '/app.js' { 'app.js' } '/data.js' { 'data.js' } default { $null } }
                 if (-not $filename) { Send-Json $response 404 ([ordered]@{ error = 'فایل پیدا نشد.' }); continue }
-                $contentType = if ($filename -eq 'index.html') { 'text/html; charset=utf-8' } elseif ($filename -eq 'style.css') { 'text/css; charset=utf-8' } else { 'application/javascript; charset=utf-8' }
+                $contentType = if ($filename -eq 'index.html') { 'text/html; charset=utf-8' } elseif ($filename -like '*.css') { 'text/css; charset=utf-8' } elseif ($filename -like '*.ttf') { 'font/ttf' } else { 'application/javascript; charset=utf-8' }
                 Send-Bytes $response 200 ([IO.File]::ReadAllBytes((Join-Path $PSScriptRoot $filename))) $contentType
             }
             else { Send-Json $response 405 ([ordered]@{ error = 'روش درخواست مجاز نیست.' }) }

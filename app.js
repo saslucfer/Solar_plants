@@ -46,10 +46,14 @@
     toastTimer = setTimeout(() => toast.classList.remove('show'), 3300);
   }
   function updateConnectionLabel() {
+    document.documentElement.dataset.connection = live ? 'live' : 'offline';
     $('connection-status').textContent = live ? 'متصل به فایل‌های اکسل' : 'نمای آفلاین؛ بدون امکان ویرایش';
-    $('sync-note').textContent = live
-      ? 'تاریخ شمسی را وارد کنید و «ثبت» را بزنید؛ کلید Enter یا خروج از کادر هم تاریخ را در فایل اکسل ذخیره می‌کند.'
-      : 'برای ویرایش و همگام‌سازی با اکسل، فایل start-dashboard.cmd را اجرا کنید.';
+    if (live) {
+      $('sync-note').textContent = 'تاریخ شمسی را وارد کنید و «ثبت» را بزنید؛ کلید Enter یا خروج از کادر هم تاریخ را در فایل اکسل ذخیره می‌کند.';
+    } else {
+      const launcher = el('bdi', 'launcher-name', 'start-dashboard.cmd'); launcher.dir = 'ltr';
+      $('sync-note').replaceChildren('برای ویرایش و همگام‌سازی با اکسل، فایل ', launcher, ' را اجرا کنید.');
+    }
     $('refresh-data').disabled = !live;
   }
   function updateSourceDate() {
@@ -85,8 +89,12 @@
     if (!live || refreshing || writing.size || document.activeElement?.classList.contains('date-input')) return;
     try {
       const result = await readResponse(await fetch('/api/version', { cache: 'no-store' }));
+      if (document.documentElement.dataset.connection === 'disconnected') updateConnectionLabel();
       if (result.version !== currentVersion) await refreshFromExcel();
-    } catch { $('connection-status').textContent = 'ارتباط با اکسل قطع شده است'; }
+    } catch {
+      document.documentElement.dataset.connection = 'disconnected';
+      $('connection-status').textContent = 'ارتباط با اکسل قطع شده است';
+    }
   }
   async function saveDocument(doc, status, lastChange) {
     if (!live) { showToast('برای ویرایش، start-dashboard.cmd را اجرا کنید.'); return false; }
