@@ -392,12 +392,10 @@
     const doc = documentMap.get(id);
     if (event.target.value === doc.status) return;
     event.target.disabled = true;
-    const saved = await saveDocument(doc, event.target.value, '');
+    const saved = await saveDocument(doc, event.target.value, todayPersian());
     renderMetrics(); renderPlants(); renderOverdue(); renderDocuments();
     if (saved) {
-      const currentRow = [...$('document-rows').rows].find(row => row.dataset.id === id);
-      currentRow?.querySelector('.date-input')?.focus();
-      showToast('وضعیت در اکسل ذخیره شد. تاریخ آخرین تغییر را نیز ثبت کنید.');
+      showToast(`وضعیت و تاریخ آخرین تغییر (${persianDigits(effectiveDate(doc))}) در اکسل ذخیره شد.`);
     }
   });
   async function saveDateInput(input) {

@@ -167,6 +167,9 @@ function Save-Document($request) {
         $actualStatus = if ($marks.Count -eq 1) { $statusKeys[$marks[0]] } else { 'unknown' }
         $actualDate = Get-CellText $sheet $row ($statusStart + 4)
         if ($actualStatus -ne [string]$request.expectedStatus -or $actualDate -ne [string]$request.expectedLastChange) { throw '[409] این مدرک در اکسل تغییر کرده است. صفحه را تازه‌سازی کنید.' }
+        if ($actualStatus -ne [string]$request.status) {
+            $newDate = Convert-MdlDate (Get-PersianDashboardDate)
+        }
         for ($i = 0; $i -lt 4; $i++) {
             $sheet.Cells.Item($row, $statusStart + $i).Value2 = if ($statusKeys[$i] -eq [string]$request.status) { '*' } else { '' }
         }
