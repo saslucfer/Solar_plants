@@ -7,6 +7,7 @@
 $ErrorActionPreference = 'Stop'
 $SourceFolder = [IO.Path]::GetFullPath($SourceFolder)
 . (Join-Path $PSScriptRoot 'dashboard-date.ps1')
+. (Join-Path $PSScriptRoot 'project-notes.ps1')
 $utf8 = [Text.UTF8Encoding]::new($false)
 $script:currentData = $null
 $script:currentVersion = ''
@@ -219,18 +220,23 @@ try {
                 Update-Cache
                 Send-Json $response 200 ([ordered]@{ version = $script:currentVersion; data = $script:currentData })
             }
-            elseif ($request.HttpMethod -eq 'POST' -and $path -eq '/api/document') {
+            elseif ($request.HttpMethod -eq 'GET' -and $path -eq '/api/notes') {
+                $store = Read-ProjectNotes $SourceFolder
+                Send-Json $response 200 ([ordered]@{ notes = @($store.notes) })
+            }
+            elseif ($request.HttpMethod -eq 'POST' -and $path -in @('/api/document', '/api/notes')) {
                 $origin = [string]$request.Headers['Origin']
                 if ($origin -and $origin -ne "http://localhost:$Port") { throw '[403] درخواست از مبدأ مجاز نیست.' }
-                if ($request.ContentType -notlike 'application/json*' -or $request.ContentLength64 -gt 10000) { throw '[400] قالب درخواست معتبر نیست.' }
+                $maxLength = if ($path -eq '/api/notes') { 100000 } else { 10000 }
+                if ($request.ContentType -notlike 'application/json*' -or $request.ContentLength64 -gt $maxLength -or $request.ContentLength64 -lt 0) { throw '[400] قالب درخواست معتبر نیست.' }
                 $reader = [IO.StreamReader]::new($request.InputStream, $utf8)
                 try { $body = $reader.ReadToEnd() | ConvertFrom-Json }
                 finally { $reader.Dispose() }
-                $result = Save-Document $body
+                $result = if ($path -eq '/api/notes') { Save-ProjectNote $SourceFolder $body } else { Save-Document $body }
                 Send-Json $response 200 $result
             }
             elseif ($request.HttpMethod -eq 'GET') {
-                $filename = switch ($path) { '/' { 'index.html' } '/index.html' { 'index.html' } '/style.css' { 'style.css' } '/theme.css' { 'theme.css' } '/fonts/b-zar.ttf' { 'fonts/b-zar.ttf' } '/fonts/b-zar-bold.ttf' { 'fonts/b-zar-bold.ttf' } '/app.js' { 'app.js' } '/data.js' { 'data.js' } default { $null } }
+                $filename = switch ($path) { '/' { 'index.html' } '/index.html' { 'index.html' } '/style.css' { 'style.css' } '/theme.css' { 'theme.css' } '/fonts/b-zar.ttf' { 'fonts/b-zar.ttf' } '/fonts/b-zar-bold.ttf' { 'fonts/b-zar-bold.ttf' } '/app.js' { 'app.js' } '/project-notes.js' { 'project-notes.js' } '/data.js' { 'data.js' } default { $null } }
                 if (-not $filename) { Send-Json $response 404 ([ordered]@{ error = 'فایل پیدا نشد.' }); continue }
                 $contentType = if ($filename -eq 'index.html') { 'text/html; charset=utf-8' } elseif ($filename -like '*.css') { 'text/css; charset=utf-8' } elseif ($filename -like '*.ttf') { 'font/ttf' } else { 'application/javascript; charset=utf-8' }
                 Send-Bytes $response 200 ([IO.File]::ReadAllBytes((Join-Path $PSScriptRoot $filename))) $contentType

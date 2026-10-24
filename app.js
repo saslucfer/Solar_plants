@@ -349,7 +349,10 @@
     $('prev-page').disabled = page <= 1;
     $('next-page').disabled = page >= pages;
   }
-  function renderAll() { renderMetrics(); renderPlants(); renderOverdue(); renderCategories(); renderDocuments(); }
+  function renderAll() {
+    renderMetrics(); renderPlants(); renderOverdue(); renderCategories(); renderDocuments();
+    window.PROJECT_NOTES?.setContext(data.plants, currentPlant);
+  }
 
   function csvCell(value) {
     let text = String(value ?? '');

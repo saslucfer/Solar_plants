@@ -2,3 +2,7 @@
 .chrome-test-profile/
 dashboard-*-preview.png
 workbook-backups/
+project-notes.json
+project-notes.json.bak
+project-notes.*.tmp
+project-notes.lock

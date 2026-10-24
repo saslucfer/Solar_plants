@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="theme.css">
   <script src="data.js" defer></script>
+  <script src="project-notes.js" defer></script>
   <script src="app.js" defer></script>
 </head>
 <body>
@@ -24,6 +25,7 @@
       <a href="#plants"><span aria-hidden="true">۰۲</span> نیروگاه‌ها</a>
       <a href="#overdue"><span aria-hidden="true">۰۳</span> مدارک نیازمند پیگیری</a>
       <a href="#documents"><span aria-hidden="true">۰۴</span> فهرست مدارک</a>
+      <a href="#project-notes"><span aria-hidden="true">۰۵</span> یادداشت‌های پروژه</a>
     </nav>
 
     <main>
@@ -75,6 +77,22 @@
         <p class="mobile-table-hint">برای دیدن همهٔ ستون‌ها، جدول را به طرفین بکشید.</p>
         <div class="table-shell"><table><thead><tr><th scope="col">ردیف</th><th scope="col">مدرک</th><th scope="col">شماره مدرک</th><th scope="col">بخش</th><th scope="col">وضعیت</th><th scope="col">آخرین تغییر وضعیت</th></tr></thead><tbody id="document-rows"></tbody></table><div id="empty-state" class="empty-state" hidden><span>⌕</span><strong>مدرکی پیدا نشد</strong><p>عبارت جست‌وجو یا فیلترها را تغییر دهید.</p></div></div>
         <div class="pagination"><span id="page-info"></span><div><button id="prev-page" type="button" aria-label="صفحه قبل">→</button><button id="next-page" type="button" aria-label="صفحه بعد">←</button></div></div>
+      </section>
+
+      <section id="project-notes" class="project-notes-section" aria-labelledby="notes-title">
+        <div class="section-head"><div><span class="section-kicker">دفتر پروژه</span><h2 id="notes-title">یادداشت‌ها و گزارش‌های پروژه</h2></div><span id="notes-count" class="result-count">۰ مورد</span></div>
+        <p class="notes-intro">نکات، کامنت‌ها و گزارش‌هایی را که در فهرست MDL نیستند، برای هر نیروگاه ثبت کنید.</p>
+        <div class="notes-layout">
+          <form id="note-form" class="note-form">
+            <label for="note-project">نیروگاه<select id="note-project" required></select></label>
+            <label for="note-kind">نوع مطلب<select id="note-kind"><option value="note">یادداشت</option><option value="comment">کامنت</option><option value="report">گزارش</option></select></label>
+            <label for="note-title">عنوان <span class="note-optional">(اختیاری)</span><input id="note-title" type="text" maxlength="140" placeholder="موضوع کوتاه توضیحات" dir="auto"></label>
+            <label for="note-body">توضیحات<textarea id="note-body" rows="7" maxlength="6000" required placeholder="متن یادداشت، کامنت یا گزارش را بنویسید…" dir="auto"></textarea></label>
+            <div class="note-form-actions"><button id="note-save" class="primary-button" type="submit" disabled>ثبت توضیحات</button><button id="note-cancel" class="text-button" type="button" hidden>لغو ویرایش</button></div>
+            <p id="note-feedback" class="note-feedback" role="status" aria-live="polite">در حال بررسی ارتباط…</p>
+          </form>
+          <div class="notes-feed-panel"><div class="notes-feed-head"><h3 id="notes-project-name"></h3><button id="notes-refresh" type="button" class="text-button">تازه‌سازی یادداشت‌ها</button></div><div id="notes-list" class="notes-list"></div></div>
+        </div>
       </section>
 
       <section class="data-section" aria-labelledby="data-title"><div><span class="section-kicker">مدیریت داده</span><h2 id="data-title">همگام‌سازی با اکسل</h2><p>پس از ویرایش و ذخیره فایل اکسل، داده‌های صفحه به‌طور خودکار تازه می‌شوند. ویرایش‌های این صفحه نیز در همان فایل اکسل ذخیره می‌شوند.</p></div><div class="data-actions"><button id="refresh-data" type="button" class="outline-button">تازه‌سازی از اکسل</button><button id="export-csv" type="button" class="outline-button">دریافت CSV</button></div></section>
