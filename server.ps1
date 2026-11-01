@@ -8,6 +8,7 @@ $ErrorActionPreference = 'Stop'
 $SourceFolder = [IO.Path]::GetFullPath($SourceFolder)
 . (Join-Path $PSScriptRoot 'dashboard-date.ps1')
 . (Join-Path $PSScriptRoot 'project-notes.ps1')
+. (Join-Path $PSScriptRoot 'pdf-report.ps1')
 $utf8 = [Text.UTF8Encoding]::new($false)
 $script:currentData = $null
 $script:currentVersion = ''
@@ -220,6 +221,14 @@ try {
                 Update-Cache
                 Send-Json $response 200 ([ordered]@{ version = $script:currentVersion; data = $script:currentData })
             }
+            elseif ($request.HttpMethod -eq 'GET' -and $path -eq '/api/report.pdf') {
+                Update-Cache
+                $notes = Read-ProjectNotes $SourceFolder
+                $bytes = New-FullReportPdf $script:currentData @($notes.notes)
+                $filename = 'solar-plants-report-' + (Convert-MdlDate (Get-PersianDashboardDate)).Replace('/', '-') + '.pdf'
+                $response.Headers.Add('Content-Disposition', ('attachment; filename="' + $filename + '"'))
+                Send-Bytes $response 200 $bytes 'application/pdf'
+            }
             elseif ($request.HttpMethod -eq 'GET' -and $path -eq '/api/notes') {
                 $store = Read-ProjectNotes $SourceFolder
                 Send-Json $response 200 ([ordered]@{ notes = @($store.notes) })
@@ -236,7 +245,7 @@ try {
                 Send-Json $response 200 $result
             }
             elseif ($request.HttpMethod -eq 'GET') {
-                $filename = switch ($path) { '/' { 'index.html' } '/index.html' { 'index.html' } '/style.css' { 'style.css' } '/theme.css' { 'theme.css' } '/fonts/b-zar.ttf' { 'fonts/b-zar.ttf' } '/fonts/b-zar-bold.ttf' { 'fonts/b-zar-bold.ttf' } '/app.js' { 'app.js' } '/project-notes.js' { 'project-notes.js' } '/data.js' { 'data.js' } default { $null } }
+                $filename = switch ($path) { '/' { 'index.html' } '/index.html' { 'index.html' } '/style.css' { 'style.css' } '/theme.css' { 'theme.css' } '/fonts/b-zar.ttf' { 'fonts/b-zar.ttf' } '/fonts/b-zar-bold.ttf' { 'fonts/b-zar-bold.ttf' } '/app.js' { 'app.js' } '/project-notes.js' { 'project-notes.js' } '/pdf-export.js' { 'pdf-export.js' } '/data.js' { 'data.js' } default { $null } }
                 if (-not $filename) { Send-Json $response 404 ([ordered]@{ error = 'فایل پیدا نشد.' }); continue }
                 $contentType = if ($filename -eq 'index.html') { 'text/html; charset=utf-8' } elseif ($filename -like '*.css') { 'text/css; charset=utf-8' } elseif ($filename -like '*.ttf') { 'font/ttf' } else { 'application/javascript; charset=utf-8' }
                 Send-Bytes $response 200 ([IO.File]::ReadAllBytes((Join-Path $PSScriptRoot $filename))) $contentType
